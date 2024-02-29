@@ -1,0 +1,1079 @@
+---
+title: "Price Prediction for Used Car"
+
+output:
+  html_document: default
+  pdf_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Introduction
+
+### Project Background
+
+At present, the amount of transfers held by the industry is increasing year by year. Thus, transfers play an important role in the development of automobiles. In developed countries, automobiles are referred to as an "industrial industry". According to industry experts, the automotive industry is growing significantly. Apart from being the fastest growing country in the automotive industry, it also represents a global presence,as in most other countries, cars have become very popular among local residents and expatriates working in the country.
+
+Today, almost everyone wants to own their own car, but due to factors such as affordability or financial situation, many people opt for used cars. Accurately predicting used car prices requires expertise, as they depend on many factors and characteristics. Used car prices in the market are not stable and both buyers and sellers need an intelligent system that allows them to effectively predict the price. In this project,used car price prediction was conducted on used car-related data. The data obtained from [Kaggle](https://www.kaggle.com/datasets/nehalbirla/vehicle-dataset-from-cardekho?datasetId=33080&sortBy=voteCount&language=R&select=Car+details+v3.csv).
+
+### Project Questions
+
+In order to predict used car price, there are several question can be ask which are:
+
+* What are the algorithms is used and which algortihm performed the best in predicting used car selling price. 
+
+* Which variables influence the used car selling price?
+
+In this regard, machine learning algorithms is required in predicting the selling price of cars based on available variables.
+
+### Project Objectives
+Buying a used car from a dealership can be a frustrating and unsatisfying experience, as some dealers have been known to use deceptive sales tactics to close the deal. The project aims to :
+
+* To build machine learning algorithms which can be implementing into used car recommendation system in predicting used car selling price.
+
+* To identify what variables influence the used car selling price.
+
+Considering this is an interesting research topic for the research community, and by continuing their steps and hope to achieve important results using more advanced methods from previous work.
+
+**Import necessary packages:**
+```{r message = FALSE, warning=FALSE}
+library(tidyverse)
+library(stringr)
+library(purrr)
+library(Amelia)
+library(GGally)
+library(caret)
+library(relaimpo)
+library(randomForest)
+library(gbm)
+library(broom)
+library(dplyr)
+library(e1071)
+library(magrittr) 
+library(dplyr) 
+library(ggplot2)
+library(data.table)
+library(tidyr) 
+library(tidyselect)
+library(plotly)
+library(reactable)
+library(htmlwidgets)
+library('IRdisplay')
+library("scales")
+```
+
+## Data Understanding
+
+### Dataset exploration
+In this project, a vehicle dataset was used which consisting of four sets of data that contains the information about used cars named car data, Car details v3, Car details v4 and Car Details from Car Dekho. For acknowledgement, the Car details v3 dataset was used. To explore the dataset, R language was mainly used for this project. Firstly, import the dataset into R project and view them.
+
+**Import dataset from local storage:**
+```{r}
+car <- read.csv('../group_project/car_project.csv')
+view(car)
+```
+
+Running the script gave us important information that there are about 8128 rows and 13 columns for this dataset. For data types, there are nine (9) column character types and four (4) column double types. Next, let's see the dataset dimension.
+
+**Dimension of dataset:**
+```{r}
+dim(car)
+```
+The car data has 8128 observations and 13 variables which are the same as the number of rows and columns as above. Next, the dataset will be familiarized with the variables available within the dataset by taking a look at the top rows of the car dataset.
+
+**Name of columns:**
+```{r}
+names(car)
+```
+The description of each coloumns:
+
+* `name` - Name of the car models.
+* `year` - Year of the car when it was bought.
+* `selling_price` - Price at which the car is being sold.
+* `km_driven` - Number of kilometers the car is driven.
+* `fuel` - Fuel type of the car used.
+* `seller_type` - Tells if a seller is individual or a dealer.
+* `transmission` - Gear transmission of the car.
+* `owner` - Number of previous owners of the car. 
+
+
+**Summary of dataset:**
+```{r}
+summary(car)
+```
+
+As for the output of summary(), if the column is numeric type, then the summary would contain information like minimum, maximum, median, mean, etc. If the column is char type, then summary would contain information like length, class and mode. Here, as seen, there are nine character types: name, fuel, seller_type, transmission, owner, mileage, engine, max_power, torque and four character types: year, selling_price, km_driven, seats. Next, let’s see the data structure.
+
+```{r}
+str(car)
+```
+
+Data structure is a way to see an overview of the data so that it can be used effectively. In this dataset, it gives an overview of dataframes, the generic data objects of R which used to store the tabular data.  Since the main objective focused on the selling price of the cars, distributions of the selling price will be seen in the first place.
+
+
+### Exploratory Data Analysis
+
+Exploratory Data Analysis refers to the critical process of performing initial investigations on data to discover patterns, to spot anomalies, to test hypotheses and to check assumptions with the help of summary statistics and graphical representations.
+
+**Function to plot width and height of plot:**
+```{r}
+fig<-function(x,y){
+  options(repr.plot.width = x, repr.plot.height = y)
+}
+```
+
+#### Top 10 most expensive car
+```{r}
+expensive_cars <- car %>% group_by(name) %>% summarise(selling_price=max(selling_price))%>%top_n(10)
+
+head(expensive_cars)
+print(expensive_cars)
+
+options(scipen = 999)
+ggplot(data = expensive_cars, aes(y=name, x=selling_price, fill=selling_price))+
+  geom_bar(stat="identity", width = 0.5, fill="#E14D2A",color = 'black')+
+  geom_text(aes(label=selling_price), vjust=1.7, color="black", size=3.0)+
+  scale_x_continuous(labels = comma)+
+  labs(x="Car Price",
+       y="Car Brand", 
+       title="Top 10 most expensive cars")+ 
+  theme_bw()+
+  theme(plot.title = element_text(size=15),axis.text.x= element_text(size=10),
+        axis.text.y= element_text(size=10), axis.title=element_text(size=10))
+```
+
+The most expensive car model is Volvo XC90 T8 Excellence BSIV, sold at 10,000,000. The second highest expensive car model is BMW X7 xDrive 30d DPE sold at 72,000,000. The third rank of expensive car brands is Audi A6 35 TFSI Matrix which was sold at 6,523,000.
+
+#### Top 10 most cheapest cars
+```{r}
+cheapest_cars <- filter(car %>% group_by(name) %>% summarise(selling_price=max(selling_price)) %>% arrange(desc(selling_price)))
+
+
+ggplot(data = tail(cheapest_cars,10), aes(y=name, x=selling_price, fill=selling_price))+
+  geom_bar(stat="identity", width = 0.5, fill="#001253",color = 'white')+
+  geom_text(aes(label=selling_price), vjust=1.9, color="black", size=3.0)+
+  scale_x_continuous(labels = comma)+
+  labs(x="Car Price",
+       y="Car Brand", 
+       title="Top 10 most cheapest car model")+ 
+  theme_bw()+
+  theme(plot.title = element_text(size=15),axis.text.x= element_text(size=10),
+        axis.text.y= element_text(size=10), axis.title=element_text(size=10))
+```
+
+The most cheapest car model is Hyundai Santro LE, sold at 35,000. The second lowest car model sold is Tata Indica DLX sold at 40,000. The third and fourth rank share the same value of the cheapest car models sold at 45,000 which are Tata Nano LX SE and Maruti 800 DXBSII.
+
+#### Number of car sold per year
+```{r}
+sold_per_year<- car %>% group_by(name, year)%>%summarise(Count=length(name))
+
+sold_per_year
+
+ggplot(sold_per_year, aes(year))+
+  geom_line(stat="count", width = 0.7,color = 'black')+  # Stack for stacked chart
+  labs(x="Year",
+       y="Count", 
+       title="Distribution of cars sold per year")+ 
+  theme_bw()+
+  theme(plot.title = element_text(size=15),axis.text.x= element_text(size=10,angle=90),
+        axis.text.y= element_text(size=10), axis.title=element_text(size=10))
+```
+
+From the data distributions of the used cars sold over past few years from 1996 to 2020, there is an increment of the car units sold. In 2012, there was a slight reduction in the number of counts and rose back up till 2017 where it reached its peak at 434 units sold. Then, the number of used cars sold decreases till 2020.
+
+#### Split  distribution count of fuel types
+```{r}
+fuel_type<- car %>% group_by(fuel) %>% summarise(Count=length(fuel)) %>% plot_ly(x=~fuel, y=~Count, color = ~fuel, colors = c("#764AF1","#F2F2F2"), type='bar')%>%layout(title="Distribution of fuel types on used car model", xaxis=list(title="Fuel type"))
+
+fuel_type
+```
+
+From the data distributions of the fuel types over the total of used cars model, the highest fuel type car model was diesel, followed by petrol. While the lowest fuel type consumption of car models is Compressed Natural Gas (CNG) and Liquefied Petroleum Gas  (LPG).
+
+#### Split distribution count of seller types
+
+```{r}
+seller<- car %>% group_by(seller_type) %>% summarise(Count=length(seller_type)) %>% plot_ly(x=~seller_type, y=~Count, color = ~seller_type, colors = c("#00FFFF","#F2F2F2"), type='bar')%>%layout(title="Distribution of seller types on used car model", xaxis=list(title="Seller type"))
+
+seller
+```
+
+From the data distributions of the seller types over the total of used cars model, the highest seller type car model was Individual, followed by Dealer and Trustmark Dealer.
+
+
+#### Split distribution count of transmission type
+```{r}
+transmission <- car %>% group_by(transmission) %>% summarise(Count=length(transmission)) %>% plot_ly(x=~transmission, y=~Count, color = ~transmission, colors = c("#00FF00","#F2F2F2"), type='bar')%>%layout(title="Distribution of used car model's transmission type", xaxis=list(title="transmission type"))
+
+transmission
+```
+
+From the data distributions of the transmission type over the total of used cars model, the highest seller type car model is Manual over the 7000 in counts, while the lowest number is the Manual type with around 1000 in counts.
+
+#### Relationship between selling price and car manufactured
+```{r}
+ggplot(data = car, aes(x=year, y=selling_price, fill=selling_price)) + 
+  geom_point()+
+  labs(y="Selling Price",
+       x="Year", 
+       title="Relationship between Selling Price and Car Manufactured")+  
+  theme_bw()+
+  theme(plot.title = element_text(size=15)
+        ,axis.text.x= element_text(size=10),
+        axis.text.y= element_text(size=10),
+        axis.title=element_text(size=10))
+
+```
+
+From the relationship of data distributions of sold car selling price over the year, the graph shows that there is an incremental density in value. As the year in time increases, the selling price values increase.
+
+
+#### Relationship between selling price and KM driven
+```{r}
+ggplot(data = car, aes(x=km_driven, y=selling_price, fill=km_driven)) + 
+  geom_point()+
+  labs(y="Selling Price",
+       x="KM driven", 
+       title="Relationship between Selling Price and km driven")+  
+  theme_bw()+
+  theme(plot.title = element_text(size=15)
+        ,axis.text.x= element_text(size=10),
+        axis.text.y= element_text(size=10),
+        axis.title=element_text(size=10))
+```
+
+From the relationship of data distributions of sold car selling price over the km driven, the graph shows that there is an decrement density in value. As the year in km driven increases, the selling price values decrease.
+
+#### Missing data detection
+Check and visualize the missing missing data:
+```{r}
+car[car == ''] <- NA
+sapply(car, function(x) sum(is.na(x)))
+missmap(car, legend = TRUE, col = c("red", "blue"))
+```
+
+There are 221 missing value in mileage, engine and seats while there are 215 and 222 missing value for max_power and torque respectively.
+
+## Data Preparation
+
+Change model name variable into company name to understand data better with just single word rather than multiple word.
+
+```{r}
+car$name <- word(car$name,1)
+```
+
+### Data transformation and imputation
+
+change car mileage variable to numerical data type and impute the missing value in car mileage using the mean:
+```{r}
+car$mileage <- parse_number(car$mileage)
+car$mileage[is.na(car$mileage)]<-mean(car$mileage,na.rm=TRUE)
+```
+
+change car engine variable to numerical data type and impute the missing value using the mean:
+```{r}
+car$engine <- parse_number(car$engine)
+car$engine[is.na(car$engine)]<-mean(car$engine,na.rm=TRUE)
+```
+
+Change car max_power variable to numeric data type and impute missing value using mean:
+```{r warning = FALSE}
+car$max_power <- parse_number(car$max_power)
+car$max_power[is.na(car$max_power)]<-mean(car$max_power,na.rm=TRUE)
+```
+
+Impute car seat variable missing value using median:
+```{r}
+car$seats[is.na(car$seats)]<-median(car$seats,na.rm=TRUE)
+```
+
+Change car torque variable to numeric and input missing value using mean:
+```{r}
+car$torque <- parse_number(car$torque)
+car$torque[is.na(car$torque)]<-mean(car$torque,na.rm=TRUE)
+```
+
+Check the data after data transformation and imputation.
+```{r}
+head(car)
+```
+
+The data has been transformed into more suitable form.
+
+Recheck and revisualize the missing value:
+```{r}
+sapply(car, function(x) sum(is.na(x)))
+missmap(car, legend = TRUE, col = c("red", "blue"))
+```
+
+There is no missing value remaining after cleaning.
+
+Check data type for all variables:
+```{r}
+lapply(car, class)
+```
+
+### Data Encoding
+Next, the categorical data will be encoded as data preparation before modelling.
+
+The each car name variable will be encoded to the numerical value from 0 to 31. The car name data type will be changed from character to numerical data type.
+```{r}
+car$name <- str_replace(car$name, 'Maruti', '0')
+car$name <- str_replace(car$name, 'Skoda', '1')
+car$name <- str_replace(car$name, 'Honda', '2')
+car$name <- str_replace(car$name, 'Hyundai', '3')
+car$name <- str_replace(car$name, 'Toyota', '4')
+car$name <- str_replace(car$name, 'Ford', '5')
+car$name <- str_replace(car$name, 'Renault', '6')
+car$name <- str_replace(car$name, 'Mahindra', '7')
+car$name <- str_replace(car$name, 'Tata', '8')
+car$name <- str_replace(car$name, 'Chevrolet', '9')
+car$name <- str_replace(car$name, 'Fiat', '10')
+car$name <- str_replace(car$name, 'Datsun', '11')
+car$name <- str_replace(car$name, 'Jeep', '12')
+car$name <- str_replace(car$name, 'Mercedes-Benz', '13')
+car$name <- str_replace(car$name, 'Mitsubishi', '14')
+car$name <- str_replace(car$name, 'Audi', '15')
+car$name <- str_replace(car$name, 'Volkswagen', '16')
+car$name <- str_replace(car$name, 'BMW', '17')
+car$name <- str_replace(car$name, 'Nissan', '18')
+car$name <- str_replace(car$name, 'Lexus', '19')
+car$name <- str_replace(car$name, 'Jaguar', '20')
+car$name <- str_replace(car$name, 'Land', '21')
+car$name <- str_replace(car$name, 'MG', '22')
+car$name <- str_replace(car$name, 'Volvo', '23')
+car$name <- str_replace(car$name, 'Daewoo', '24')
+car$name <- str_replace(car$name, 'Kia', '25')
+car$name <- str_replace(car$name, 'Force', '26')
+car$name <- str_replace(car$name, 'Ambassador', '27')
+car$name <- str_replace(car$name, 'Ashok', '28')
+car$name <- str_replace(car$name, 'Isuzu', '29')
+car$name <- str_replace(car$name, 'Opel', '30')
+car$name <- str_replace(car$name, 'Peugeot', '31')
+car$name <- as.numeric(car$name)
+
+table(car$name)
+```
+
+The car transmission variable will be encoded to the numerical value where "Manual" will be changed to 0 while "Auto" will be changed to 1. The transmission variable data type will be changed from character to numerical data type: 
+```{r}
+car$transmission <- str_replace(car$transmission, 'Manual', "0")
+car$transmission <- str_replace(car$transmission, 'Automatic', "1")
+car$transmission <- as.numeric(car$transmission)
+table(car$transmission)
+```
+
+The car owner variables will be encoded to numerical value where "First Owner" will be changed to "0", "Second Owner" will be changed to "1", "Third Owner" will be changed to "2", "Fourth & Above Owner" will be changed to "3" and "Test Drive Car" will be changed to "4":
+```{r}
+car$owner <- str_replace(car$owner, 'First Owner', "0")
+car$owner <- str_replace(car$owner, 'Second Owner', "1")
+car$owner <- str_replace(car$owner, 'Third Owner', "2")
+car$owner <- str_replace(car$owner, 'Fourth & Above Owner', "3")
+car$owner <- str_replace(car$owner, 'Test Drive Car', "4")
+car$owner <- as.numeric(car$owner)
+table(car$owner)
+```
+
+The car seller_type variable will be encoded to numerical value where "Trustmark Dealer" will be changed to "0", "Dealer" will be changed to "1" and "Individual" will be changed to "2":
+```{r}
+car$seller_type <- str_replace(car$seller_type, "Trustmark Dealer", "0")
+car$seller_type <- str_replace(car$seller_type, "Dealer", "1")
+car$seller_type <- str_replace(car$seller_type, "Individual", "2")
+car$seller_type <- as.numeric(car$seller_type)
+table(car$seller_type)
+```
+
+The car fuel variable will be encoded to numerical value where "Diesel" will be changed to "0", "Petrol" will be changed to "1" and "CNG" will be changed to "2" and "LPG" will be changed to "3":
+```{r}
+car$fuel <- str_replace(car$fuel, 'Diesel', "0")
+car$fuel <- str_replace(car$fuel, 'Petrol', "1")
+car$fuel <- str_replace(car$fuel, 'CNG', "2")
+car$fuel <- str_replace(car$fuel, 'LPG', "3")
+car$fuel <- as.numeric(car$fuel)
+table(car$fuel)
+```
+
+Check the dataset after encoding and transformation:
+```{r}
+head(car)
+```
+
+All data is encoded properly.
+
+### Data Standardization
+specify non target variables into categorical and numerical column and specify target variables for preparation for normalization.
+```{r}
+cat_cols <- c('name', 'year', 'fuel', 'seller_type', 'transmission', 'owner', 'seats')
+num_cols <- c('km_driven', 'mileage', 'engine', 'max_power', 'torque')
+target_cols <- c('selling_price')
+```
+
+Standardized the data for non target variables, while target variable will not be standardized for easy representation of selling price.
+```{r}
+preproc <- preProcess(car[, c(cat_cols,num_cols)], method=c("range"))
+car_scaled <- predict(preproc, car)
+head(car_scaled)
+```
+
+The data has been successfully processed as shown in the display of data above.
+
+## Modelling
+
+Split the data into 80% training set and 20% testing set.
+```{r}
+trainIndex <- createDataPartition(car_scaled$selling_price, p = 0.8,
+                                  list = FALSE,
+                                  times = 1)
+train <- car_scaled[ trainIndex,]
+test <- car_scaled[-trainIndex,]
+
+dim(train)
+dim(test)
+```
+
+5 regression algorithms will be used for modelling and all of them will be evaluated and compared to find the best model. The evaluation metric will use RMSE score for evaluation. The comparison of each model will be discussed on the evaluation & conclusion section.
+
+### Linear Regression (LR)
+
+Linear regression training:
+```{r}
+set.seed(123)
+lr <- lm(selling_price ~ ., data = train)
+summary(lr)
+```
+The summary of the Linear Regression model is stated in the display above which give statistical information about the model.
+
+
+Linear regression testing:
+```{r}
+pred_lr <- predict(lr, newdata = test)
+error_lr <- test$selling_price - pred_lr
+
+eval_lr <- cbind(test$selling_price, pred_lr)
+colnames(eval_lr) <- c("True Price", "Predicted Price")
+eval_lr <- as.data.frame(eval_lr)
+head(eval_lr)
+
+```
+
+From the model testing, some proportion of true values and predicted value has been shown above just to give rough view of comparison between true values and predicted values. As can been shown in display above, roughly, the difference between true values and predicted values in Linear Regression model is quite far and the predicted value have negative value. All the selling price values should be positive.
+
+Scatter plot of actual values against predicted values for Linear Regression.
+```{r}
+RMSE_lr <- round(sqrt(mean(error_lr^2)),2)
+RMSE_lr
+
+plot(test$selling_price,pred_lr, main="Actual Value vs Predicted Value for Linear Regression Model", col = c("blue","red"), xlab = "Actual Selling Price", ylab = "Predicted Selling Price")
+abline(a = 0, b =1)
+```
+
+The RMSE value is Root Mean Squared Error of the predicted and true values. The higher RMSE indicate that the higher error which indicate that lower model performance while lower RMSE indicate that the lower error which indicate that higher model performance. The RMSE value for Linear Regression is `r RMSE_lr` which are quite high. In the scatter plot the blue point represent true value while red point represent predicted value and the black line is regressed diagonal line which as benchmark where points that are closer to the line  indicate the better performance of the model. In the Linear Regression model, the point of both values are dispersed away from the diagonal line which indicate that the model performance is low. In addition, some of the predicted value lies in the negative and zero value, it is impossible to have zero or negative value of selling price.  There, it can be conclude that the performance of Linear regression model is worse. 
+
+### Random Forest Regression (RF)
+
+Random Forest Regression training.
+```{r}
+set.seed(123)
+rf <- randomForest(selling_price~.,data = train)
+rf
+```
+
+Random Forest Regression testing.
+```{r}
+pred_rf <- predict(rf, test)
+error_rf <- test$selling_price - pred_rf
+
+eval_rf <- cbind(test$selling_price, pred_rf)
+colnames(eval_rf) <- c("True Price", "Predicted Price")
+eval_rf <- as.data.frame(eval_rf)
+head(eval_rf)
+
+```
+Roughly, in the Random Forest model, the difference of true value and predicted value having relatively small difference which roughly indicate that the Random Forest has better performance than Linear Regression model.  
+
+Scatter plot for actual values against predicted values for Random forest Regression.
+```{r}
+RMSE_rf <- round(sqrt(mean(error_rf^2)),2)
+RMSE_rf
+
+plot(test$selling_price,pred_rf, main="Actual Value vs Predicted Value for Random Forest Model", col = c("blue","red"), xlab = "Actual Selling Price", ylab = "Predicted Selling Price")
+abline(a = 0, b =1)
+```
+
+The RMSE value for Random Forest model is `r RMSE_rf` which is very low compared to the Linear Regression model. Based on the scatter plot, all the point are reasonably close to the regressed diagonal line with only a few point is far from the regressed diagonal line which indicate the good performance of model. Based on the RMSE value and scatter plot, the Random Forest have good performance.
+
+
+### K-Nearest Neighbor (KNN)
+
+K-Nearest Neighbor training.
+```{r}
+set.seed(123)
+knn = knnreg(selling_price~.,data = train)
+knn
+```
+
+K-Nearest Neighbor testing.
+```{r}
+pred_knn <- predict(knn, newdata = test)
+error_knn <- test$selling_price - pred_knn
+
+eval_knn <- cbind(test$selling_price, pred_knn)
+colnames(eval_knn) <- c("True Price", "Predicted Price")
+eval_knn <- as.data.frame(eval_knn)
+head(eval_knn)
+```
+
+Roughly, in the KNN model, the difference of true value and predicted value have noticeable difference. This roughly estimate that the KNN model will have lower performance compared the Random Forest model.  
+
+Scatter plot for actual values against predicted values for Random forest Regression.
+```{r}
+RMSE_knn <- round(sqrt(mean(error_knn^2)),2)
+RMSE_knn
+plot(test$selling_price,pred_knn, main="Actual Value vs Predicted Value for K-Nearest Neighbor Model", col = c("blue","red"), xlab = "Actual Selling Price", ylab = "Predicted Selling Price")
+abline(a = 0, b =1)
+```
+
+The RMSE value for KNN model is `r RMSE_knn` which is significantly high compared to the Random Forest model. Based on the scatter plot, all the point are reasonably close to the regressed diagonal line with just a some point that are far from the regressed diagonal line which indicate the notable performance of model. However, based on RMSE and overall fit of the point, the performance of Random Forest model is still far better than KNN model.
+
+### Support Vector Machine (SVM)
+
+Support Vector Machine training.
+```{r}
+set.seed(123)
+svm = svm(selling_price~.,data = train)
+svm
+```
+
+Support Vector Machine testing.
+```{r}
+pred_svm <- predict(svm, newdata = test)
+error_svm <- test$selling_price - pred_svm
+
+eval_svm <- cbind(test$selling_price, pred_svm)
+colnames(eval_svm) <- c("True Price", "Predicted Price")
+eval_svm <- as.data.frame(eval_svm)
+head(eval_svm)
+```
+
+Roughly, in SVM mode, the difference of true value and predicted value having also relatively small difference same as KNN model. This roughly estimate that the SVM model will have almost the same performance with the KNN models.  
+
+Scatter plot for actual values against predicted values for Support Vector Machine.
+```{r}
+RMSE_svm <- round(sqrt(mean(error_svm^2)),2)
+RMSE_svm
+
+plot(test$selling_price,pred_svm, main="Actual Value vs Predicted Value for SVM  Model", col = c("blue","red"), xlab = "Actual Selling Price", ylab = "Predicted Selling Price")
+abline(a = 0, b =1)
+```
+
+The RMSE value for SVM model is `r RMSE_svm` which is almost the same as KNN model. Based on the scatter plot, all the point are reasonably close to the regressed diagonal line with just a some point that are far from the regressed diagonal line which indicate the notable performance of model. However, based on RMSE and overall fit of the point, the performance of Random Forest model is still far better than SVM model.
+
+### Graient Boost (GB)
+
+Gradient Boost training.
+```{r}
+set.seed(123)
+
+gbm <- gbm(
+  formula = selling_price ~ .,
+  distribution = "gaussian",
+  data = train,
+  n.trees = 6000,
+  interaction.depth = 3,
+  shrinkage = 0.1,
+  cv.folds = 5,
+  n.cores = NULL, # will use all cores by default
+  verbose = FALSE
+)  
+
+gbm
+```
+
+Gradient Boost testing.
+```{r}
+pred_gbm <- predict(gbm, test)
+error_gbm <- test$selling_price - pred_gbm
+
+eval_gbm <- cbind(test$selling_price, pred_gbm)
+colnames(eval_gbm) <- c("True Price", "Predicted Price")
+eval_gbm <- as.data.frame(eval_gbm)
+head(eval_gbm)
+
+RMSE_gbm <- round(sqrt(mean(error_gbm^2)),2)
+RMSE_gbm
+```
+
+Roughly, in the Gradient Boost model, the difference of true value and predicted value having also relatively small difference same as Random Forest model. This roughly estimate that the Gradient Boost model will have almost the same performance with the Random Forest model.  
+
+Scatter plot for actual values against predicted values for Gradient Boost.
+```{r}
+plot(test$selling_price,pred_gbm, main="Actual Value vs Predicted Value for Gradient Boost Model", col = c("blue","red"), xlab = "Actual Selling Price", ylab = "Predicted Selling Price")
+abline(a = 0, b =1)
+```
+
+The RMSE value for Gradient Boost model is `r RMSE_gbm` which is relatively low and almost similar with the Random Forest model. Based on the scatter plot, all the point are reasonably close to the regressed diagonal line with almost negligible points that far from regressed diagonal line which indicate the outstanding performance of model. Based on the RMSE and overall fit of the point, the Gradient Boost model have better performance compared to Random Forest model with small difference between RMSE score.
+
+## Evaluation & Conclusion
+
+Each RMSE score for each model will be put into a table for comparison. RMSE score for all models is shown in Figure Below.
+```{r}
+Model <- c('Linear Regression','Random Forest','Gradient Boosting', 'K-Nearest Neighbour', "Support Vector Machine")
+RMSE <- c(RMSE_lr,RMSE_rf,RMSE_gbm,RMSE_knn,RMSE_svm)
+res <- data.frame(Model,RMSE)
+res %>% arrange(RMSE,descending =TRUE)
+
+ggplot(data = res, aes(x= Model, y = RMSE, fill = Model)) + geom_bar(stat="identity") + theme(axis.text.x = element_blank(), axis.ticks = element_blank())
+```
+
+Gradient Boost model have the lowest RMSE score which is `r RMSE_gbm` with only small difference with Random Forest model. Therefore, Gradient Boost model the best model among the other model while Linear Regression model have the highest RMSE score which is `r RMSE_lr` which indicate the worse model among the other model. 
+
+Using Gradient Boosting model, the features importance can be calculated to find which features or variables have greater influence in the price prediction.
+```{r}
+summary(
+  gbm, 
+  cBars = 10,
+  method = relative.influence, las = 2
+)
+```
+
+From the features importance, the max_power variable is the biggest infrequence which 60% of relative influence in the predicting selling price based on this dataset and Gradient Boost model. The features importance rank from highest to lowest is max_power, year, torque, km_driven, name, engine, mileage, transmission, seller_type and owner.
+
+Gradient Boost model and Random Forest model have less significant difference in RMSE value. Both model can be approved to be the best model, the selection of project this project are not fully utilizing the machine learning capabilities such as hyperparameter tuning. The hyperparameter tuning can not be utilized due to technical limitation.
+
+Hyperparameter tuning script for Gradient Boost model:
+```{r eval = FALSE}
+rainControl <- trainControl(method = "cv",
+                             number = 10,
+                             returnResamp="all", ### use "all" to return all cross-validated metrics
+                             search = "grid")
+
+tuneGrid <- expand.grid(
+  n.trees = c(5000, 10000),
+  interaction.depth = c( 6, 13),
+  shrinkage = c(0.01, 0.001),
+  n.minobsinnode=c(5, 10)
+)
+gbm_hpt <- train(selling_price ~.,
+                data = train,
+                method = "gbm",
+                tuneGrid = tuneGrid,
+                trControl = trainControl,
+                verbose=FALSE)
+
+pred_gbm_hpt <- predict(gbm_hpt, test)
+error_gbm_hpt <- test$selling_price - pred_gbm_hpt
+RMSE_gbm_hpt <- round(sqrt(mean(error_gbm_hpt^2)),2)
+RMSE_gbm_hpt
+
+
+plot(test$selling_price,pred_gbm_hpt, main="Scatterplot", col = c("blue","red"), xlab = "Actual Selling Price", ylab = "Predicted Selling Price")
+
+```
+
+## Deployment
+
+The result of descriptive and predictive analysis will be integrated into the shiny application. The deployment will be in the form of dashboard by using shiny based on the selected machine learning algorithm (best model) to car prediction system. The selected model is built by using following code: 
+```{r eval = FALSE}
+library(tidyverse)
+library(stringr)
+library(purrr)
+library(Amelia)
+library(GGally)
+library(caret)
+library(relaimpo)
+library(randomForest)
+library(gbm)
+library(broom)
+library(dplyr)
+library(e1071)
+library(skimr)
+library(janitor)
+library(tidymodels)
+library(vip)
+library(xgboost)
+library(openxlsx)
+
+car <- read.csv('../group_project/car_project.csv')
+
+car[car == ''] <- NA
+sapply(car, function(x) sum(is.na(x)))
+
+
+# change model name to company name
+car$name <- word(car$name,1)
+
+# change car mileage to numeric & impute missing value using mean
+car$mileage <- parse_number(car$mileage)
+car$mileage[is.na(car$mileage)]<-mean(car$mileage,na.rm=TRUE)
+
+#change car engine to numeric & impute missing value using mean
+car$engine <- parse_number(car$engine)
+car$engine[is.na(car$engine)]<-mean(car$engine,na.rm=TRUE)
+
+#change max power to numeric & impute missing value using mean
+car$max_power <- parse_number(car$max_power)
+car$max_power[is.na(car$max_power)]<-mean(car$max_power,na.rm=TRUE)
+
+# change car seat to numeric & imput missing value using median
+car$seats[is.na(car$seats)]<-median(car$seats,na.rm=TRUE)
+
+# change car torque to numeric and input missing value using mean
+car$torque <- parse_number(car$torque)
+car$torque[is.na(car$torque)]<-mean(car$torque,na.rm=TRUE)
+
+set.seed(345)
+split <- initial_split(car, prop = .80)
+train_df <- training(split)
+test_df <- testing(split)
+
+# Create recipe and roles--preprocessing for the model
+recipe <-
+  recipe(selling_price ~ ., data = train_df) %>%
+  step_dummy(all_predictors(), -all_numeric()) %>%
+  step_zv(all_predictors()) %>%
+  step_center(all_predictors(), -all_nominal()) %>%
+  step_scale(all_predictors(), -all_nominal()) %>%
+  step_impute_mean(all_predictors(), -all_nominal()) 
+
+# Model, with hyperparameters chosen from best performing model after tuning models
+mod <-
+  boost_tree(trees = 6000,
+             tree_depth = 3,
+             learn_rate = 0.1) %>%
+  set_engine('xgboost') %>%
+  set_mode("regression")
+
+# Workflow
+set.seed(345)
+wf <- workflow() %>%
+  add_model(mod) %>%
+  add_recipe(recipe)
+
+final <-wf %>%
+  fit(data  = train_df)
+
+
+# Predictions with training set
+predictions_train <- predict(final, train_df) %>%
+  bind_cols(train_df %>% select_all)
+
+# Test data predictions merged with test data
+predictions_test <- predict(final, test_df) %>%
+  bind_cols(test_df %>% select_all())
+
+
+```
+
+The application is built by using this following code:
+```{r eval = FALSE}
+library(shiny)
+library(shinyWidgets)
+library(scales)
+library(grid)
+library(gridExtra)
+library(shinydashboard)
+library(rsconnect)
+library(textyle)
+
+
+# Source in model file
+source('model.R')
+source('eda.r')
+
+saveRDS(final, "pricemodel.rds")
+
+priceModel <- readRDS("pricemodel.rds")
+shiny_df <- bind_rows(predictions_train, predictions_train)
+
+priceModel
+
+years <- unique(sold_per_year$year)
+years
+
+colnames(cardata)
+
+plottype <- c("bar", "line", "box")
+
+plottype
+sort(years)
+ui <- dashboardPage(
+  dashboardHeader(title = "Automobile Price"),
+  dashboardSidebar(
+    sidebarMenu(
+      menuItem("Dashboard", tabName = "dashboard", icon = icon("magnifying-glass-chart", lib = "font-awesome")),
+      menuItem("Prediction Tools", tabName = "tools", icon = icon("gear", lib = "font-awesome"))
+    )
+  ),
+  dashboardBody(
+    tabItems(
+      # First tab content
+      tabItem(tabName = "dashboard",
+              h1("Desriptive Analysis of Automobile Price"),
+              fluidRow(
+                box(title = "Cars sold across year", width = 6, height = 300, solidHeader = TRUE, plotOutput("plot3", height = 250)),
+                box(title = "Number of car sold in a year", width = 6, height = 300, solidHeader = TRUE, plotOutput("plot4", height = 250))
+              ),
+              fluidRow(
+                box(title = "Select years: ",height = 300,  sliderInput("slider3", "Years:", min(years), max(years),c(min(years), max(years)))),
+                box(title = "Select a year ",height = 300,  selectInput("slider4", "years:", choices= sort(years)))
+              ),
+              fluidRow(
+                box(title = "Most expensive cars", width = 6, height = 300, solidHeader = TRUE, plotOutput("plot1", height = 250)),
+                box(title = "Most cheapest cars", width = 6, height = 300, solidHeader = TRUE, plotOutput("plot2", height = 250))
+              ),
+              fluidRow(
+                box(title = "Select number of top cars: ",height = 300,  sliderInput("slider1", "Number of expensive cars:", 3, 10, 5), selectInput("carname1", "select car model:", choices= sort(c(unique(shiny_df$name), "All")))),
+                box(title = "Select number of top cars: ",  height = 300, sliderInput("slider2", "Number of cheapest cars:", 3, 10, 5), selectInput("carname2", "select car model:", choices= sort(c(unique(shiny_df$name), "All"))))
+              ),
+              fluidRow(
+                box(title = "Exploration between two variables", width = 12, height = 300, solidHeader = TRUE, plotOutput("plot5", height = 250))
+                
+              ),
+              fluidRow(
+                box(title = "Select variables:",  width = 12, height = 300, selectInput("select1", "Variable X:", choices = colnames(cardata)), selectInput("select2", "Variable Y:", choices= colnames(cardata), "All"), selectInput("select3", "Type of plot:", choices = plottype)))
+              ),
+      
+      tabItem(tabName = "tools",
+              h1("Predictive Analysis of Automobile Price"),
+              fluidRow(
+                box(title = "Select car name", width = 3, height = 150, solidHeader = TRUE, selectInput("carname", "name of car", choices= sort(unique(shiny_df$name)))),
+                box(title = "Select year", width = 3, height = 150, solidHeader = TRUE, numericInput("caryear", "year", 2011)),
+                box(title = "Select number of kilometer", width = 3, height = 150, solidHeader = TRUE, numericInput("carkm", "Number of kilometer driven", 100000)),
+                box(title = "Select fuel type", width = 3, height = 150, solidHeader = TRUE, selectInput("carfuel", "Type of fuel", choices= sort(unique(shiny_df$fuel))))
+              ),
+              fluidRow(
+                box(title = "Select seller type", width = 3, height = 150, solidHeader = TRUE, selectInput("carseller", "Seller type", choices= sort(unique(shiny_df$seller_type)))),
+                box(title = "Select car transmission", width = 3, height = 150, solidHeader = TRUE, selectInput("cartransmission", "Type of transmission", choices= sort(unique(shiny_df$transmission)))),
+                box(title = "Select number of previous owner", width = 3, height = 150, solidHeader = TRUE, selectInput("carowner", "Number of previous owner", choices= sort(unique(shiny_df$owner)))),
+                box(title = "Select number of mileage", width = 3, height = 150, solidHeader = TRUE, numericInput("carmileage", "Mileage of the car",21))
+              ),
+              fluidRow(
+                box(title = "Select engine capacity", width = 3, height = 150, solidHeader = TRUE, numericInput("carengine", "Engine capacity of the car",1400)),
+                box(title = "Select maximum engine power", width = 3, height = 150, solidHeader = TRUE, numericInput("carmaxpower", "Max power of the engine",80)),
+                box(title = "Select engine tourque", width = 3, height = 150, solidHeader = TRUE, numericInput("cartourque", "Tourque of the engine",200)),
+                box(title = "Select number of seat", width = 3, height = 150, solidHeader = TRUE, selectInput("carseat", "Number of seat", choices= sort(unique(shiny_df$seats))))
+              ),
+              fluidRow(
+                box(align = "center", status = "info", title = "The vehicle price prediction", width =12, height =500, 
+                    actionButton("submitbutton", "Submit", class = "btn btn-primary"), br(), br(),
+                    textOutput('text'), br(),#,
+                    tags$head(tags$style("#text{color: black;
+                                 font-size: 20px;
+                                 font-style: italic;
+                                 font-weight: bold;
+                                 }"
+                    )),
+                    imageOutput('image', width = 210, height = 250)))
+              #fluidRow(
+               # box(width = 6, height = 300, actionButton("submitbutton", "Submit", class = "btn btn-primary")),
+                #box(width = 6, height = 300, textyle(tags$p("TEXTYLE", style = "font-size:7rem;font-weight:900;")),textOutput("text")))
+              )
+            )
+          )
+  )
+        
+      
+
+server <- function(input, output, session) {
+  #set.seed(122)
+  
+  output$plot1 <- renderPlot({
+    
+    expensive_cars <- cardata %>% group_by(name) %>% summarise(selling_price=max(selling_price))#%>%top_n(input$slider1)
+    expensive_cars <- expensive_cars[order(-expensive_cars$selling_price),]#%>%top_n(10)
+    
+    if (input$carname1 == "All"){
+      selectdata <- grepl("", expensive_cars$name)
+  
+    } else {
+      selectdata <- grepl(input$carname1, expensive_cars$name)
+    }
+    
+    expensive_cars <- expensive_cars[selectdata,]%>%top_n(input$slider1)
+    #head(expensive_cars)
+    #print(expensive_cars)
+    
+    title <- paste("Top", input$slider1, "most expensive cars")
+    options(scipen = 999)
+    ggplot(data = expensive_cars, aes(y=name, x=selling_price, fill=selling_price))+
+      geom_bar(stat="identity", width = 0.5, fill="#001253",color = 'black')+
+      geom_text(aes(label=selling_price), vjust=1.9, color="black", size=3.0)+
+      scale_x_continuous(labels = comma)+
+      labs(x="Car Price",
+           y="Car Brand", 
+           title=title)+ 
+      theme_bw()+
+      theme(plot.title = element_text(size=15),axis.text.x= element_text(size=10),
+            axis.text.y= element_text(size=10), axis.title=element_text(size=10))
+
+  })
+  
+  output$plot2 <- renderPlot({
+    
+
+    cheapest_cars <- filter(cardata %>% group_by(name) %>% summarise(selling_price=max(selling_price)) %>% arrange(desc(selling_price)))
+    
+    if (input$carname2 == "All"){
+      selectdata <- grepl("", cheapest_cars$name)
+      
+    } else {
+      selectdata <- grepl(input$carname2, cheapest_cars$name)
+    }
+    
+    cheapest_cars <- cheapest_cars[selectdata,]
+    #head(expensive_cars)
+    #print(expensive_cars)
+    title <- paste("Top", input$slider2, "most cheapest cars")
+    
+    ggplot(data = tail(cheapest_cars,input$slider2), aes(y=name, x=selling_price, fill=selling_price))+
+      geom_bar(stat="identity", width = 0.5, fill="#001253",color = 'black')+
+      geom_text(aes(label=selling_price), vjust=1.9, color="black", size=3.0)+
+      scale_x_continuous(labels = comma)+
+      labs(x="Car brand",
+           y="Car Price", 
+           title=title)+ 
+      theme_bw()+
+      theme(plot.title = element_text(size=15),axis.text.x= element_text(size=10),
+            axis.text.y= element_text(size=10), axis.title=element_text(size=10))
+    
+  })
+  
+  my_range <- reactive({
+    cbind(input$slider3[1],input$slider3[2])
+  })
+  
+  output$plot3 <- renderPlot({
+    
+    
+    sold_per_year<- cardata %>% group_by(name, year)%>%summarise(Count=length(name))
+    
+    
+    sold_per_year <- filter(sold_per_year, year>my_range()[1] & year<my_range()[2])
+    title<- paste("Distribution of cars sold from",input$slider3[1],"to",input$slider3[2])
+    
+    ggplot(sold_per_year, aes(year))+
+      geom_line(stat="count", width = 0.7,color = 'blue')+  # Stack for stacked chart
+      labs(x="Year",
+           y="Count", 
+           title=title)+ 
+      theme_bw()+
+      theme(plot.title = element_text(size=15),axis.text.x= element_text(size=10,angle=90),
+            axis.text.y= element_text(size=10), axis.title=element_text(size=10))
+    
+  })
+  
+  output$plot4 <- renderPlot({
+    
+    
+    sold_per_year<- car %>% group_by(name, year)%>%summarise(Count=length(name))
+    sold_per_year <- filter(sold_per_year, year==input$slider4)
+    
+    sold_per_year
+    
+    title <- paste("Number of cars sold in ", input$slider4)
+    ggplot(data = sold_per_year, aes(y=Count, x=name))+
+      geom_bar(stat="identity", width = 0.5, fill="#001253", color = "blue")+
+      geom_text(aes(label=Count), vjust=1.7, color="black", size=3.0)+
+      labs(x="Car brand",
+           y="Count", 
+           title=title)+ 
+      theme_bw()+
+      theme(plot.title = element_text(size=15),axis.text.x= element_text(size=10),
+            axis.text.y= element_text(size=10), axis.title=element_text(size=10))
+  })
+  output$plot5 <- renderPlot({
+    
+    title <- paste("Relationhip between", input$select1, "and", input$select2)
+    
+    
+    if (input$select3 == "bar"){
+    
+    ggplot(data = car, aes_string(x=input$select1, y=input$select2)) + 
+      geom_bar(stat = 'identity',color = 'blue')+
+      labs(title=title)
+    } else if (input$select3 == "line"){
+      
+    ggplot(data = car, aes_string(x=input$select1, y=input$select2)) + 
+      geom_line(colour = "blue")+
+      labs(title=title)
+    } else if (input$select3 == "box"){
+      
+      ggplot(data = car, aes_string(x=input$select1, y=input$select2)) + 
+      geom_boxplot(colour = "blue")+
+      labs(title=title)
+    }
+      
+        
+    
+  })
+  datasetInput <- reactive({
+    
+    
+    test <- data.frame(
+      name = c(input$carname),
+      year = c(input$caryear),
+      km_driven = c(input$carkm),
+      fuel = c(input$carfuel),
+      seller_type = c(input$carseller),
+      transmission = c(input$cartransmission),
+      owner = c(input$carowner),
+      mileage = c(input$carmileage),
+      engine = c(input$carengine),
+      max_power = c(input$carmaxpower),
+      torque = c(input$cartourque),
+      seats = c(as.numeric(input$carseat)))
+    
+    priceModel <- readRDS("pricemodel.rds")
+    
+    Output <- predict(priceModel,test)
+    Output <- paste("The price of car based on selected features: - USD ", round(Output), " -")
+  
+    paste(" ", Output, " ", sep="\n")
+  })
+  
+  
+  
+  output$image <- 
+    renderImage({
+    if (input$submitbutton>0){
+      
+      img <- c("image1.png",
+               "image2.png",
+               "image3.png",
+               "image4.png",
+               "image5.png",
+               "image6.png",
+               "image7.png",
+               "image8.png")
+      
+      
+      img_ch <- sample(img, 1)
+      
+      
+      list(src = file.path("images", img_ch),
+           width = "100%",
+           height = "100%")
+      
+    } else{
+      list(src = file.path("images/28this.jpg"),
+           width = "100%",
+           height = "100%")
+    }
+      }, deleteFile = F)
+  
+  output$text <- renderText({
+    if (input$submitbutton>0) { 
+      #isolate("Calculation complete.")
+      isolate(datasetInput())
+    } else {
+      return("Server is ready for calculation.")
+    }
+  })
+}
+
+shinyApp(ui, server)
+```
+
+The deployment product was developed and can be access through this [link]( https://dimashidayat.shinyapps.io/AutomobilePrice_Prediction/).
