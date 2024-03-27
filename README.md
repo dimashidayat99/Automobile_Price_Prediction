@@ -1,6 +1,8 @@
 # Automotive Price Forecasting and Prediction System
 
-![](https://github.com/dimashidayat99/Automobile_Price_Prediction/assets/69446089/64719268-37d4-48a4-a6ad-f76015a38a7a)
+<p align="middle">
+<img src="https://github.com/dimashidayat99/Automobile_Price_Prediction/assets/69446089/64719268-37d4-48a4-a6ad-f76015a38a7a"  width="800" />
+</p>
 
 # Project Background
 At present, the amount of transfers held by the industry is increasing year by year. Thus, transfers play an important role in the development of automobiles. In developed countries, automobiles are referred to as an “industrial industry”. According to industry experts, the automotive industry is growing significantly. Apart from being the fastest growing country in the automotive industry, it also represents a global presence,as in most other countries, cars have become very popular among local residents and expatriates working in the country.
